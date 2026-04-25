@@ -1,0 +1,31 @@
+{
+	"schemaVersion": 1,
+	"id": "packet-sniffer",
+	"version": "${version}",
+	"name": "packet-sniffer",
+	"description": "Captures all C2S/S2C network packets to log files",
+	"authors": [
+		"MotWnb"
+	],
+	"contact": {
+		"homepage": "https://github.com/MotWnb",
+		"sources": "https://github.com/MotWnb/packet-sniffer"
+	},
+	"license": "MIT",
+	"icon": "assets/packet-sniffer/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"client": [
+			"io.github.motwnb.packetsniffer.PacketSnifferMod"
+		]
+	},
+	"mixins": [
+		"packet-sniffer.mixins.json"
+	],
+	"depends": {
+		"fabricloader": ">=0.19.2",
+		"minecraft": "~26.1.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}

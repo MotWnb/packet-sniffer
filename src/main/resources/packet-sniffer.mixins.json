@@ -1,0 +1,14 @@
+{
+	"required": true,
+	"package": "io.github.motwnb.packetsniffer.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"mixins": [
+		"ConnectionMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}
