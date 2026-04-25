@@ -2,13 +2,12 @@ package io.github.motwnb.packetsniffer;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 
 public class PacketSerializer {
-
-    private static final int MAX_BYTES_DISPLAY = 64;
 
     public static String serialize(Object packet) {
         StringBuilder sb = new StringBuilder();
@@ -28,7 +27,7 @@ public class PacketSerializer {
             field.setAccessible(true);
             try {
                 Object val = field.get(obj);
-                sb.append("  ").append(field.getName()).append(": ").append(format(val)).append('\n');
+                sb.append("  ").append(NameResolver.mapFieldName(clazz, field.getName())).append(": ").append(format(val)).append('\n');
             } catch (Exception e) {
                 sb.append("  ").append(field.getName()).append(": <access error>\n");
             }
@@ -46,8 +45,7 @@ public class PacketSerializer {
                 return "null";
             }
             case byte[] b -> {
-                String hex = toHex(b, Math.min(b.length, MAX_BYTES_DISPLAY));
-                return "byte[" + b.length + "] " + hex + (b.length > MAX_BYTES_DISPLAY ? "..." : "");
+                return "byte[" + b.length + "] " + Base64.getEncoder().encodeToString(b);
             }
             case int[] a -> {
                 return "int[" + a.length + "]";
@@ -73,18 +71,27 @@ public class PacketSerializer {
             case Enum<?> e -> {
                 return e.name();
             }
+            case Record r -> {
+                var components = r.getClass().getRecordComponents();
+                StringBuilder rsb = new StringBuilder();
+                rsb.append(NameResolver.remapString(r.getClass().getSimpleName())).append('[');
+                for (int i = 0; i < components.length; i++) {
+                    if (i > 0) rsb.append(", ");
+                    rsb.append(NameResolver.mapFieldName(r.getClass(), components[i].getName()));
+                    rsb.append('=');
+                    try {
+                        rsb.append(format(components[i].getAccessor().invoke(r)));
+                    } catch (Exception e) {
+                        rsb.append("<error>");
+                    }
+                }
+                rsb.append(']');
+                return rsb.toString();
+            }
             default -> {
             }
         }
 
-        return val.toString();
-    }
-
-    private static String toHex(byte[] bytes, int limit) {
-        StringBuilder sb = new StringBuilder(limit * 2);
-        for (int i = 0; i < limit; i++) {
-            sb.append(String.format("%02x", bytes[i]));
-        }
-        return sb.toString();
+        return NameResolver.remapString(val.toString());
     }
 }

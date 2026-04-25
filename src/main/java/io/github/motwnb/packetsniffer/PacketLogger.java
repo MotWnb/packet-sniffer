@@ -49,8 +49,8 @@ public class PacketLogger {
 
         long id = COUNTER.incrementAndGet();
         long timestamp = System.currentTimeMillis();
-        String simpleName = packet.getClass().getSimpleName();
-        String fullName = packet.getClass().getName();
+        String packetId = packet.type().id().toString();
+        String className = NameResolver.mapSimpleClassName(packet.getClass());
         String fields = PacketSerializer.serialize(packet);
 
         executor.submit(() -> {
@@ -59,10 +59,10 @@ public class PacketLogger {
                         Instant.ofEpochMilli(timestamp), ZoneId.systemDefault()
                 ).format(TIME_FMT);
 
-                listWriter.write(String.format("#%d [%s] [%s] %s%n", id, time, direction, simpleName));
+                listWriter.write(String.format("#%d [%s] [%s] %s (%s)%n", id, time, direction, packetId, className));
                 listWriter.flush();
 
-                contentWriter.write(String.format("=== #%d [%s] [%s] %s ===%n", id, time, direction, fullName));
+                contentWriter.write(String.format("=== #%d [%s] [%s] %s (%s) ===%n", id, time, direction, packetId, className));
                 contentWriter.write(fields);
                 contentWriter.newLine();
                 contentWriter.flush();

@@ -7,6 +7,7 @@ public class PacketSnifferMod implements ClientModInitializer {
 
 	@Override
 	public void onInitializeClient() {
+		NameResolver.init();
 		PacketLogger.init(FabricLoader.getInstance().getGameDir());
 		Runtime.getRuntime().addShutdownHook(new Thread(PacketLogger::shutdown));
 	}
