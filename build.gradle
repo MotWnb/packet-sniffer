@@ -1,187 +1,188 @@
 import groovy.json.JsonSlurper
 
 import java.util.zip.ZipFile
+
 plugins {
-	id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
-	id 'maven-publish'
+    id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+    id 'maven-publish'
 }
 
-version = project.mod_version
-group = project.maven_group
+version = mod_version
+group = maven_group
 
 repositories {
-	// Add repositories to retrieve artifacts from in here.
-	// You should only use this when depending on other mods because
-	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
-	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
-	// for more information about repositories.
+    // Add repositories to retrieve artifacts from in here.
+    // You should only use this when depending on other mods because
+    // Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
+    // See https://docs.gradle.org/current/userguide/declaring_repositories.html
+    // for more information about repositories.
 }
 
 dependencies {
-	// To change the versions see the gradle.properties file
-	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	mappings loom.officialMojangMappings()
-	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    // To change the versions see the gradle.properties file
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-	// Fabric API. This is technically optional, but you probably want it anyway.
-	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-	
+    // Fabric API. This is technically optional, but you probably want it anyway.
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
 }
 
 processResources {
-	inputs.property "version", project.version
+    inputs.property "version", version
 
-	filesMatching("fabric.mod.json") {
-		expand "version": inputs.properties.version
-	}
+    filesMatching("fabric.mod.json") {
+        expand "version": inputs.properties.version
+    }
 }
 
 tasks.withType(JavaCompile).configureEach {
-	it.options.release = 21
+    it.options.release = 21
 }
 
 java {
-	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-	// if it is present.
-	// If you remove this line, sources will not be generated.
-	withSourcesJar()
+    // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
+    // if it is present.
+    // If you remove this line, sources will not be generated.
+    withSourcesJar()
 
-	sourceCompatibility = JavaVersion.VERSION_21
-	targetCompatibility = JavaVersion.VERSION_21
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 jar {
-	inputs.property "projectName", project.name
+    def projectName = project.name
+    inputs.property "projectName", projectName
 
-	from("LICENSE") {
-		rename { "${it}_${project.name}"}
-	}
+    from("LICENSE") {
+        rename { "${it}_${projectName}" }
+    }
 }
 
-// configure the maven publication
 publishing {
-	publications {
-		create("mavenJava", MavenPublication) {
-			from components.java
-		}
-	}
+    publications {
+        create("mavenJava", MavenPublication) {
+            from components.java
+        }
+    }
 
-	// See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
-	repositories {
-		// Add repositories to publish to here.
-		// Notice: This block does NOT have the same function as the block in the top level.
-		// The repositories here will be used for publishing your artifact, not for
-		// retrieving dependencies.
-	}
+    // See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
+    repositories {
+        // Add repositories to publish to here.
+        // Notice: This block does NOT have the same function as the block in the top level.
+        // The repositories here will be used for publishing your artifact, not for
+        // retrieving dependencies.
+    }
 }
 
 def generatedResDir = layout.buildDirectory.dir("generated/resources")
 
 tasks.register('generateMappings') {
-	inputs.property('mcVersion', project.property('minecraft_version'))
-	def outputFile = layout.buildDirectory.file("generated/resources/packetsniffer/mappings.txt")
-	outputs.file(outputFile)
+    def mcVersion = project.property('minecraft_version')
+    inputs.property('mcVersion', mcVersion)
 
-	doLast {
-		def mcVersion = project.property('minecraft_version')
+    def outputFile = layout.buildDirectory.file("generated/resources/packetsniffer/mappings.txt")
+    outputs.file(outputFile)
 
-		def manifest = new JsonSlurper().parseText(
-				new URI("https://launchermeta.mojang.com/mc/game/version_manifest_v2.json").toURL().text
-		)
-		def versionEntry = manifest.versions.find { it.id == mcVersion }
-		if (!versionEntry) throw new GradleException("MC version ${mcVersion} not found")
+    doLast {
+        def manifest = new JsonSlurper().parseText(
+                new URI("https://launchermeta.mojang.com/mc/game/version_manifest_v2.json").toURL().text
+        )
+        def versionEntry = manifest.versions.find { it.id == mcVersion }
+        if (!versionEntry) throw new GradleException("MC version ${mcVersion} not found")
 
-		def versionJson = new JsonSlurper().parseText(
-				new URI(versionEntry.url as String).toURL().text
-		)
+        def versionJson = new JsonSlurper().parseText(
+                new URI(versionEntry.url as String).toURL().text
+        )
 
-		def out = outputFile.get().asFile
-		out.parentFile.mkdirs()
+        def out = outputFile.get().asFile
+        out.parentFile.mkdirs()
 
-		if (!versionJson.downloads.containsKey('client_mappings')) {
-			println "No client mappings for ${mcVersion}, skipping"
-			out.text = ""
-			return
-		}
+        if (!versionJson.downloads.containsKey('client_mappings')) {
+            println "No client mappings for ${mcVersion}, skipping"
+            out.text = ""
+            return
+        }
 
-		def proguardText = new URI(versionJson.downloads.client_mappings.url as String).toURL().text
+        def proguardText = new URI(versionJson.downloads.client_mappings.url as String).toURL().text
 
-		def obf2named = new HashMap<String, String>()
-		def obf2namedField = new HashMap<String, String>()
-		String currentObf = null
+        def obf2named = new HashMap<String, String>()
+        def obf2namedField = new HashMap<String, String>()
+        String currentObf = null
 
-		for (String line : proguardText.readLines()) {
-			if (line.startsWith('#') || line.trim().isEmpty()) continue
-			if (!line.startsWith(' ') && !line.startsWith('\t')) {
-				def m = (line =~ /^(\S+)\s+->\s+(\S+):$/)
-				if (m.matches()) {
-					String named = m.group(1).replace('.', '/')
-					String obf = m.group(2).replace('.', '/')
-					obf2named.put(obf, named)
-					currentObf = obf
-				}
-			} else if (currentObf != null) {
-				String trimmed = line.trim()
-				if (!trimmed.contains('(')) {
-					def fm = (trimmed =~ /^(\S+)\s+(\S+)\s+->\s+(\S+)$/)
-					if (fm.matches()) {
-						obf2namedField.put("${currentObf}#${fm.group(3)}" as String, fm.group(2))
-					}
-				}
-			}
-		}
+        for (String line : proguardText.readLines()) {
+            if (line.startsWith('#') || line.trim().isEmpty()) continue
+            if (!line.startsWith(' ') && !line.startsWith('\t')) {
+                def m = (line =~ /^(\S+)\s+->\s+(\S+):$/)
+                if (m.matches()) {
+                    String named = m.group(1).replace('.', '/')
+                    String obf = m.group(2).replace('.', '/')
+                    obf2named.put(obf, named)
+                    currentObf = obf
+                }
+            } else if (currentObf != null) {
+                String trimmed = line.trim()
+                if (!trimmed.contains('(')) {
+                    def fm = (trimmed =~ /^(\S+)\s+(\S+)\s+->\s+(\S+)$/)
+                    if (fm.matches()) {
+                        obf2namedField.put("${currentObf}#${fm.group(3)}" as String, fm.group(2))
+                    }
+                }
+            }
+        }
 
-		def intUrl = "https://maven.fabricmc.net/net/fabricmc/intermediary/${mcVersion}/intermediary-${mcVersion}-v2.jar"
-		def tmpDir = layout.buildDirectory.dir("tmp").get().asFile
-		tmpDir.mkdirs()
-		def tmpJar = new File(tmpDir, "intermediary-${mcVersion}.jar")
-		try {
-			tmpJar.bytes = new URI(intUrl).toURL().bytes
-		} catch (Exception ignored) {
-			println "No intermediary mappings for ${mcVersion}, skipping"
-			out.text = ""
-			return
-		}
+        def intUrl = "https://maven.fabricmc.net/net/fabricmc/intermediary/${mcVersion}/intermediary-${mcVersion}-v2.jar"
+        def tmpDir = layout.buildDirectory.dir("tmp").get().asFile
+        tmpDir.mkdirs()
+        def tmpJar = new File(tmpDir, "intermediary-${mcVersion}.jar")
+        try {
+            tmpJar.bytes = new URI(intUrl).toURL().bytes
+        } catch (Exception ignored) {
+            println "No intermediary mappings for ${mcVersion}, skipping"
+            out.text = ""
+            return
+        }
 
-		def int2obfClass = new HashMap<String, String>()
-		def int2obfField = new HashMap<String, String>()
-		String curIntClass = null
-		String curObfClass = null
+        def int2obfClass = new HashMap<String, String>()
+        def int2obfField = new HashMap<String, String>()
+        String curIntClass = null
+        String curObfClass = null
 
-		def zf = new ZipFile(tmpJar)
-		String tinyText = zf.getInputStream(zf.getEntry('mappings/mappings.tiny')).text
-		zf.close()
+        def zf = new ZipFile(tmpJar)
+        String tinyText = zf.getInputStream(zf.getEntry('mappings/mappings.tiny')).text
+        zf.close()
 
-		for (String line : tinyText.readLines()) {
-			if (line.startsWith('tiny\t') || line.trim().isEmpty()) continue
-			if (line.startsWith('c\t')) {
-				String[] parts = line.split('\t')
-				curObfClass = parts[1]
-				curIntClass = parts[2]
-				int2obfClass.put(curIntClass, curObfClass)
-			} else if (line.startsWith('\tf\t') && curIntClass != null) {
-				String[] parts = line.split('\t')
-				int2obfField.put("${curIntClass}#${parts[4]}" as String, "${curObfClass}#${parts[3]}" as String)
-			}
-		}
+        for (String line : tinyText.readLines()) {
+            if (line.startsWith('tiny\t') || line.trim().isEmpty()) continue
+            if (line.startsWith('c\t')) {
+                String[] parts = line.split('\t')
+                curObfClass = parts[1]
+                curIntClass = parts[2]
+                int2obfClass.put(curIntClass, curObfClass)
+            } else if (line.startsWith('\tf\t') && curIntClass != null) {
+                String[] parts = line.split('\t')
+                int2obfField.put("${curIntClass}#${parts[4]}" as String, "${curObfClass}#${parts[3]}" as String)
+            }
+        }
 
-		out.withWriter('UTF-8') { w ->
-			int2obfClass.each { String intCls, String obfCls ->
-				String named = obf2named.get(obfCls)
-				if (named != null && intCls != named) {
-					w.writeLine("C\t${intCls.replace('/', '.')}\t${named.replace('/', '.')}")
-				}
-			}
-			int2obfField.each { String intKey, String obfKey ->
-				String[] ip = intKey.split('#')
-				String named = obf2namedField.get(obfKey)
-				if (named != null && ip[1] != named) {
-					w.writeLine("F\t${ip[0].replace('/', '.')}\t${ip[1]}\t${named}")
-				}
-			}
-		}
-		println "Generated mappings: ${out.length()} bytes"
-	}
+        out.withWriter('UTF-8') { w ->
+            int2obfClass.each { String intCls, String obfCls ->
+                String named = obf2named.get(obfCls)
+                if (named != null && intCls != named) {
+                    w.writeLine("C\t${intCls.replace('/', '.')}\t${named.replace('/', '.')}")
+                }
+            }
+            int2obfField.each { String intKey, String obfKey ->
+                String[] ip = intKey.split('#')
+                String named = obf2namedField.get(obfKey)
+                if (named != null && ip[1] != named) {
+                    w.writeLine("F\t${ip[0].replace('/', '.')}\t${ip[1]}\t${named}")
+                }
+            }
+        }
+        println "Generated mappings: ${out.length()} bytes"
+    }
 }
 
 sourceSets.main.resources.srcDir(generatedResDir)
